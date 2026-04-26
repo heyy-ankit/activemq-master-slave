@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "activemq.fullname" . }}
+  labels:
+    {{- include "activemq.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "activemq.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "activemq.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "activemq.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: activemq
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: openwire
+              containerPort: 61616
+            - name: web
+              containerPort: 8161
+          env:
+            - name: ACTIVEMQ_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "activemq.fullname" . }}-auth
+                  key: username
+            - name: ACTIVEMQ_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "activemq.fullname" . }}-auth
+                  key: password
+            - name: ACTIVEMQ_MIN_MEMORY
+              value: {{ .Values.activemq.minMemory | quote }}
+            - name: ACTIVEMQ_MAX_MEMORY
+              value: {{ .Values.activemq.maxMemory | quote }}
+            {{- with .Values.activemq.additionalEnvs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /opt/activemq/data
+            - name: config
+              mountPath: /opt/activemq/conf/activemq.xml
+              subPath: activemq.xml
+          readinessProbe:
+            tcpSocket:
+              port: openwire
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: openwire
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "activemq.fullname" . }}-config
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+  {{- end }}
