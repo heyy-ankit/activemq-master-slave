@@ -1,0 +1,70 @@
+image:
+  repository: activemq-custom
+  tag: "5.18.4"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  amqpPort: 61616
+  webPort: 8161
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+
+security:
+  adminUsername: admin
+  adminPassword: changeme
+
+activemq:
+  minMemory: 512m
+  maxMemory: 1536m
+  additionalEnvs: []
+
+config:
+  activemqXml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <beans xmlns="http://www.springframework.org/schema/beans"
+           xmlns:amq="http://activemq.apache.org/schema/core"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="
+             http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+             http://activemq.apache.org/schema/core http://activemq.apache.org/schema/core/activemq-core.xsd">
+
+      <broker xmlns="http://activemq.apache.org/schema/core" brokerName="localhost" useJmx="true" persistent="true" dataDirectory="${activemq.data}">
+        <destinationPolicy>
+          <policyMap>
+            <policyEntries>
+              <policyEntry queue=">" producerFlowControl="true" memoryLimit="1mb"/>
+              <policyEntry topic=">" producerFlowControl="true" memoryLimit="1mb"/>
+            </policyEntries>
+          </policyMap>
+        </destinationPolicy>
+
+        <managementContext>
+          <managementContext createConnector="false"/>
+        </managementContext>
+
+        <persistenceAdapter>
+          <kahaDB directory="${activemq.data}/kahadb"/>
+        </persistenceAdapter>
+
+        <transportConnectors>
+          <transportConnector name="openwire" uri="tcp://0.0.0.0:61616"/>
+        </transportConnectors>
+      </broker>
+    </beans>
